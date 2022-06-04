@@ -1,0 +1,4 @@
+(executable
+ (public_name req)
+ (name main)
+ (libraries req))
