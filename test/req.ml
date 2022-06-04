@@ -1,1 +1,3 @@
-let () = assert (String.equal Req.Msg.greeting "Hello World")
+let () =
+  let _ = Req.Parse.parse "" in
+  ()

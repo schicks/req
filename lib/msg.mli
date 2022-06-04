@@ -1,1 +1,0 @@
-val greeting : string

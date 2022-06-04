@@ -1,4 +1,5 @@
 (executable
  (public_name req)
  (name main)
- (libraries req))
+ (libraries req core core_unix.command_unix core_unix.filename_unix cohttp-lwt-unix)
+ (preprocess (pps ppx_jane)))
