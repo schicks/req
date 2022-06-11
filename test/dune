@@ -1,3 +1,5 @@
 (test
- (libraries req)
- (name req))
+ (libraries req alcotest)
+ (name parse))
+(cram
+ (deps %{bin:req}))

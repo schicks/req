@@ -4,8 +4,8 @@ open Lwt
 
 let run_request ({ headers; body; meth; uri } : Req.Parse.request) =
   Lwt_main.run
-    ( Client.call ~headers ~body meth uri >>= fun (_, body) ->
-      Cohttp_lwt.Body.to_string body )
+    ( Client.call ~headers ~body:(Cohttp_lwt.Body.of_string body) meth uri
+    >>= fun (_, body) -> Cohttp_lwt.Body.to_string body )
 
 let () =
   Command_unix.run
@@ -14,6 +14,8 @@ let () =
           anon ("filename" %: Filename_unix.arg_type)
         in
         fun () ->
-          Result.(
-            Req.Parse.parse_file filename >>| run_request |> function
-            | Ok result | Error result -> print_endline result)))
+          match Req.Parse.parse_file filename with
+          | Ok request -> run_request request |> print_endline
+          | Error parse_error ->
+              Printf.eprintf "Failed to parse request: '%s'\n" parse_error;
+              exit 1))

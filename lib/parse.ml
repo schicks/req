@@ -1,85 +1,69 @@
 open Angstrom
 (*Largely lifted from https://raw.githubusercontent.com/inhabitedtype/angstrom/master/examples/rFC2616.ml*)
 
-
 type request = {
-  headers: Cohttp.Header.t; 
-  body: Cohttp_lwt.Body.t;
-  meth: Cohttp.Code.meth;
-  uri: Uri.t;
+  headers : Cohttp.Header.t;
+  body : string;
+  meth : Cohttp.Code.meth;
+  uri : Uri.t;
 }
 
 module P = struct
-  let is_space =
-    function | ' ' | '\t' -> true | _ -> false
+  let is_space = function ' ' | '\t' -> true | _ -> false
+  let is_eol = function '\r' | '\n' -> true | _ -> false
+  let is_digit = function '0' .. '9' -> true | _ -> false
 
-  let is_eol =
-    function | '\r' | '\n' -> true | _ -> false
+  let is_token = function
+    | '\000' .. '\031'
+    | '\127' | ')' | '(' | '<' | '>' | '@' | ',' | ';' | '\\' | '"' | '/' | '['
+    | ']' | '?' | '=' | '{' | '}' | ' ' ->
+        false
+    | _ -> true
 
-  let is_digit =
-    function '0' .. '9' -> true | _ -> false
-
-
-  let is_token =
-    (* The commented-out ' ' and '\t' are not necessary because of the range at
-      * the top of the match. *)
-    function
-      | '\000' .. '\031' | '\127'
-      | ')' | '(' | '<' | '>' | '@' | ',' | ';' | ':' | '\\' | '"'
-      | '/' | '[' | ']' | '?' | '=' | '{' | '}' (* | ' ' | '\t' *) -> false
-      | _ -> true
-
-      let meth = function
-      | "GET" -> `GET
-      | "POST" -> `POST
-      | "HEAD" -> `HEAD
-      | "DELETE" -> `DELETE
-      | "PATCH" -> `PATCH
-      | "PUT" -> `PUT
-      | "OPTIONS" -> `OPTIONS
-      | "TRACE" -> `TRACE
-      | "CONNECT" -> `CONNECT
-      | s -> `Other s
+  let is_uri_token = function '/' | ':' -> true | a -> is_token a
 end
 
 let token = take_while1 P.is_token
+let uri_token = take_while1 P.is_uri_token
 let digits = take_while1 P.is_digit >>| int_of_string
 let spaces = skip_while P.is_space
 
-let lex p = p <* spaces
+let meth : Cohttp.Code.meth t =
+  token >>| Cohttp.Code.method_of_string <?> "method"
+
+let uri = uri_token >>| Uri.of_string <?> "uri"
 
 let version =
-  string "HTTP/" *>
-  lift2 (fun major minor -> (major, minor))
-    (digits <* char '.')
-    digits
+  string "HTTP/"
+  *> lift2 (fun major minor -> (major, minor)) (digits <* char '.') digits
+  <?> "version"
 
-let uri =
-  take_till P.is_space >>| Uri.of_string
-
-let meth: Cohttp.Code.meth t = token >>| P.meth
+let lex p = p <* (end_of_input <|> end_of_line <|> spaces)
+let ( -| ) = Core.Fn.compose
 
 let request_line =
-  lift3 (fun meth uri version -> (meth, uri, version))
-    (lex meth)
-    (lex uri)
-    version
-  <* end_of_line
+  lift3
+    (fun meth uri version -> (meth, uri, version))
+    (lex meth) (lex uri) version
+  <?> "request line"
 
 let header =
-  let colon = char ':' <* spaces in
-  lift2 (fun key value -> (key, value))
-    token
+  let colon = lex (char ':') in
+  lift2
+    (fun key value -> (key, value))
+    (take_while1 (not -| P.is_space))
     (colon *> take_till P.is_eol)
+  <?> "header"
 
-let headers = many (header <* end_of_line) <* end_of_line >>| Cohttp.Header.of_list
+let headers = lex (many (lex header)) >>| Cohttp.Header.of_list <?> "headers"
+let body = take 1 <?> "body"
 
 let request =
-  lift3 (fun (meth, uri, _) headers body -> {headers; meth; uri; body})
-    request_line
-    headers
-    (take_till (fun _ -> true) >>| Cohttp_lwt.Body.of_string)
+  lift3
+    (fun (meth, uri, _) headers body -> { headers; meth; uri; body })
+    (lex request_line)
+    (headers <|> return (Cohttp.Header.init ()))
+    (body <|> return "")
 
-let parse s = parse_string ~consume:All request s
-
+let parse s = parse_string ~consume:Prefix request s
 let parse_file filename = Core.In_channel.read_all filename |> parse
