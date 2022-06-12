@@ -5,7 +5,9 @@ I like saving requests to files so that I can version them and iterate on them. 
 ## Installation
 TODO
 ## Usage
-TODO
+```bash
+req request.http [-f] [-i]
+```
 ## Contributing
 ### Setting up a local environment
 - `opam switch create . 4.13.1`
