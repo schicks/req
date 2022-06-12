@@ -43,15 +43,19 @@ module RequestLine = struct
 end
 
 module Headers = struct
-  let sprint = Cohttp.Header.to_string
+  let sprint hs =
+    Cohttp.Header.to_list hs
+    |> List.map (fun (key, value) -> Printf.sprintf "'%s: %s'" key value)
+    |> String.concat ",\n"
+
   let equal a b = Cohttp.Header.compare a b = 0
   let testable = Alcotest.testable (prints sprint) equal
 end
 
 module Request = struct
   let sprint Req.Parse.{ meth; uri; headers; body } =
-    Printf.sprintf "%s %s \n %s \n %s" (Meth.sprint meth) (Url.sprint uri)
-      (Headers.sprint headers) body
+    Printf.sprintf "%s %s \n Headers:\n%s \n Body:\n'%s'" (Meth.sprint meth)
+      (Url.sprint uri) (Headers.sprint headers) body
 
   let equal Req.Parse.{ meth = meth_a; uri = uri_a; headers = headers_a; _ }
       Req.Parse.{ meth = meth_b; uri = uri_b; headers = headers_b; _ } =

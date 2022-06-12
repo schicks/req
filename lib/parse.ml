@@ -10,6 +10,7 @@ type request = {
 
 module P = struct
   let is_space = function ' ' | '\t' -> true | _ -> false
+  let is_colon = function ':' -> true | _ -> false
   let is_eol = function '\r' | '\n' -> true | _ -> false
   let is_digit = function '0' .. '9' -> true | _ -> false
 
@@ -19,6 +20,10 @@ module P = struct
     | ']' | '?' | '=' | '{' | '}' | ' ' ->
         false
     | _ -> true
+
+  let is_header_key = function
+    | '/' | 'a' .. 'z' | 'A' .. 'Z' -> true
+    | _ -> false
 
   let is_uri_token = function '/' | ':' -> true | a -> is_token a
 end
@@ -51,12 +56,12 @@ let header =
   let colon = lex (char ':') in
   lift2
     (fun key value -> (key, value))
-    (take_while1 (not -| P.is_space))
-    (colon *> take_till P.is_eol)
+    (take_while1 P.is_header_key)
+    (colon *> take_while1 (not -| P.is_eol))
   <?> "header"
 
 let headers = lex (many (lex header)) >>| Cohttp.Header.of_list <?> "headers"
-let body = take 1 <?> "body"
+let body = take_while (fun _ -> true) <?> "body"
 
 let request =
   lift3

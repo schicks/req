@@ -3,7 +3,17 @@ let build_test_case parser output_testable (input, output) =
   let check_parse = check (result output_testable string) in
   test_case input `Quick (fun () ->
       check_parse "Parses correctly" (Ok output)
-        (Angstrom.parse_string ~consume:Prefix parser input))
+        (Angstrom.parse_string ~consume:All parser input))
+
+
+let req_body = {|{
+  "some key": null, 
+  "other key": []
+}|}
+let complete_req_example = {|GET www.google.com HTTP/1.1
+Authorization: Bearer some-token
+
+|} ^ req_body
 
 let () =
   let open Alcotest in
@@ -42,6 +52,13 @@ let () =
         |> List.map
              (build_test_case Req.Parse.request_line
                 Testables.RequestLine.testable) );
+      ( "headers",
+        [
+          ( "Authorization: some-token\n",
+            Cohttp.Header.init_with "Authorization" "some-token" );
+        ]
+        |> List.map
+             (build_test_case Req.Parse.headers Testables.Headers.testable) );
       ( "request",
         [
           ( "GET www.google.com HTTP/1.1\n\n",
@@ -51,6 +68,24 @@ let () =
                 uri = Uri.of_string "www.google.com";
                 headers = Cohttp.Header.init ();
                 body = "";
+              } );
+          ( "GET www.google.com HTTP/1.1\nAuthorization: Bearer some-token\n",
+            Req.Parse.
+              {
+                meth = `GET;
+                uri = Uri.of_string "www.google.com";
+                headers =
+                  Cohttp.Header.init_with "Authorization" "Bearer some-token";
+                body = "";
+              } );
+          ( complete_req_example,
+            Req.Parse.
+              {
+                meth = `GET;
+                uri = Uri.of_string "www.google.com";
+                headers =
+                  Cohttp.Header.init_with "Authorization" "Bearer some-token";
+                body = req_body;
               } );
         ]
         |> List.map

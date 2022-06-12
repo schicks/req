@@ -1,5 +1,7 @@
 create fixture file
-  $ echo -n "GET http://www.httpbin.org/get HTTP/1.1" > simple.http
+  $ cat >simple.http <<EOF
+  > GET http://www.httpbin.org/get HTTP/1.1
+  > EOF
 
 Check request
   $ cat simple.http
